@@ -207,7 +207,8 @@ def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Contex
                 # Sell if shares are held
                 if shares > 0:
                     curPortfolio.sell(stock, shares, curMarket)
-
+    
+    context.current_day += 1
 
 ###SIMULATION###
 market = Market()
@@ -222,7 +223,7 @@ context.initialize_context_with_data(file_path)
 for i in range(365):
     update_portfolio(market, portfolio, context)
     market.updateMarket()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
 print(portfolio.evaluate(market))
 

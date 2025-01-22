@@ -185,6 +185,29 @@ def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Contex
     predictions = context.predict()
     
     #TODO: use predictions to do something
+    for stock in context.historical_prices.keys():
+        prices = context.historical_prices[stock]
+        # Ensure there's enough data to calculate the long-term moving average
+        if len(prices) >= 10:
+            # Calculate short-term and long-term moving averages
+            short_term_ma = (prices['Price'][-3:].mean()*3 + predictions[stock])/4
+            long_term_ma = (prices['Price'][-10:].mean()*10 + predictions[stock])/11
+            
+            current_price = curMarket.stocks[stock]
+            shares = curPortfolio.shares[stock]
+
+            # If short-term MA crosses above long-term MA, buy; if it crosses below, sell
+            if short_term_ma > long_term_ma:
+                # Buy if not already bought
+                if shares == 0:
+                    shares_to_buy = int(curPortfolio.cash / (current_price * (1 + Market.transaction_fee)))
+                    if shares_to_buy > 0:
+                        curPortfolio.buy(stock, shares_to_buy, curMarket)
+            elif short_term_ma < long_term_ma:
+                # Sell if shares are held
+                if shares > 0:
+                    curPortfolio.sell(stock, shares, curMarket)
+
 
 ###SIMULATION###
 market = Market()

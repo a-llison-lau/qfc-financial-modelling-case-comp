@@ -11,11 +11,18 @@ class Market:
     transaction_fee = 0.005
     def __init__(self) -> None:
         self.stocks = {"HydroCorp": 123, "BrightFuture": 456}
+        self.future_prices = {}
 
-    def updateMarket(self):
-        #Will be implemented during grading. 
-        #This function will update the stock values to their "real" values each day.
-        pass
+    # def updateMarket(self):
+    #     #Will be implemented during grading. 
+    #     #This function will update the stock values to their "real" values each day.
+    #     pass
+
+    def updateMarket(self, context):
+        """ Updates the market with future prices one day at a time """
+        self.stocks["HydroCorp"] = self.future_prices["HydroCorp"].iloc[context.current_day-365]
+        self.stocks["BrightFuture"] = self.future_prices["BrightFuture"].iloc[context.current_day-365]
+        # print("Simulation period is over, no more updates.")
  
 class Portfolio:
     def __init__(self) -> None:
@@ -125,10 +132,10 @@ class Context:
 
             # Train Linear Regression model
             model = LinearRegression()
-            model.fit(X_train, y_train)
+            model.fit(X_train.values, y_train.values)
 
             # Make predictions on the test set (predict the difference in price)
-            y_pred_diff = model.predict(X_test)
+            y_pred_diff = model.predict(X_test.values)
 
             # To predict the actual price, add the predicted difference to the actual price
             # Assuming the last known price is in the last row of the test set
@@ -149,7 +156,7 @@ class Context:
 
             # Calculate and print Mean Squared Error (MSE)
             mse = mean_squared_error(y_test, y_pred_diff)
-            print(f"{stock} Model MSE: {mse:.2f}")
+            # print(f"{stock} Model MSE: {mse:.2f}")
 
             # Store the trained model
             self.models[stock] = model
@@ -174,6 +181,18 @@ class Context:
             predictions[stock] = predicted_price
 
         return predictions
+
+def initialize_future_data(market: Market, context: Context) -> None:
+        # Create future stock prices based on historical data and price difference
+        for stock in context.historical_prices.keys():
+            historical_data = context.historical_prices[stock]
+            start_price = historical_data["Price"].iloc[0]
+            end_price = historical_data["Price"].iloc[-1]
+            
+            price_diff = end_price - start_price
+            future_prices = historical_data["Price"] + price_diff  # Add the difference to each price
+            
+            market.future_prices[stock] = future_prices
 
 def update_portfolio(curMarket: Market, curPortfolio: Portfolio, context: Context):
     # YOUR TRADING STRATEGY GOES HERE
@@ -217,12 +236,15 @@ context = Context()
 
 file_path = "/Users/allisonlau/VSCodeProjects/qfc-financial-modelling-case-comp/Stock Prices - Days 0-365.xlsx"
 context.initialize_context_with_data(file_path)
+initialize_future_data(market, context)
 
 # import pdb; pdb.set_trace()
 
 for i in range(365):
     update_portfolio(market, portfolio, context)
-    market.updateMarket()
+    market.updateMarket(context)
+    total_value = portfolio.evaluate(market)
+    print(f"Day {i} | hydrocorp {portfolio.shares["HydroCorp"]}, {market.stocks["HydroCorp"]} | brightfuture {portfolio.shares["BrightFuture"]}, {market.stocks["BrightFuture"]} | totalvalue {total_value}")
     # import pdb; pdb.set_trace()
 
 print(portfolio.evaluate(market))

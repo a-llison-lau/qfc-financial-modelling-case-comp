@@ -105,36 +105,53 @@ class Context:
         for stock in self.historical_prices.keys():
             data = self.historical_prices[stock].copy()
 
-            for i in range(1, self.window_size + 1):
-                data[f"Price_Lag_{i}"] = data["Price"].shift(i)
+            # Apply differencing to remove trend
+            data["Price_Diff"] = data["Price"].diff()  # Difference between consecutive prices
+            data = data.dropna()  # Drop NaN values created by differencing
 
+            # Create lagged features on differenced data
+            for i in range(1, self.window_size + 1):
+                data[f"Price_Lag_{i}"] = data["Price_Diff"].shift(i)
+
+            # Drop rows with NaN values after creating lagged features
             data = data.dropna()
 
+            # Extract features (X) and target (y)
             X = data[[f"Price_Lag_{i}" for i in range(1, self.window_size + 1)]]
-            y = data["Price"]
+            y = data["Price_Diff"]  # We are predicting the difference in price (first differenced)
 
+            # Split data into training and testing sets
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 
+            # Train Linear Regression model
             model = LinearRegression()
             model.fit(X_train, y_train)
 
-            y_pred = model.predict(X_test)
+            # Make predictions on the test set (predict the difference in price)
+            y_pred_diff = model.predict(X_test)
 
-            # Plot y_test vs y_pred
+            # To predict the actual price, add the predicted difference to the actual price
+            # Assuming the last known price is in the last row of the test set
+            last_known_price = self.historical_prices[stock]["Price"].iloc[-1]  # Latest actual price
+            predicted_prices = last_known_price + y_pred_diff  # Add predicted price change
+
+            # Correct Plot: Plot predicted actual prices vs actual prices
             plt.figure(figsize=(8, 6))
-            plt.scatter(y_test, y_pred, alpha=0.7, color="blue", label="Predicted vs Actual")
-            plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color="red", linestyle="--", label="Ideal Fit")
-            plt.xlabel("Actual Price")
-            plt.ylabel("Predicted Price")
+            plt.scatter(y_test.index, y_test + last_known_price, label="Actual Price", color="blue", marker="o")  # Actual prices
+            plt.scatter(y_test.index, predicted_prices, label="Predicted Price", color="red", marker="x")  # Predicted prices
+            plt.xlabel("Test Sample Index")
+            plt.ylabel("Stock Price")
             plt.title(f"{stock}: Predicted vs Actual Prices (Linear Regression)")
             plt.legend()
             plt.grid(True)
             plt.savefig(f"{stock}_predicted_vs_actual.png")
             plt.close()  # Close the plot to avoid overlapping figures
 
-            mse = mean_squared_error(y_test, y_pred)
+            # Calculate and print Mean Squared Error (MSE)
+            mse = mean_squared_error(y_test, y_pred_diff)
             print(f"{stock} Model MSE: {mse:.2f}")
 
+            # Store the trained model
             self.models[stock] = model
 
     def predict(self) -> dict:
